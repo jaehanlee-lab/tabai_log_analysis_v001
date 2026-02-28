@@ -173,11 +173,11 @@ if __name__ == "__main__":
     #   2) df를 path_csv로 저장
     path_log = r"/path/to/wandb_or_dir"  # .wandb 파일 경로 또는 .wandb들이 있는 디렉토리
     path_csv = r"/path/to/output.csv"    # 저장할 CSV 파일 경로
-	"""
+    """
 	# Examples 
     path_log = "mlp_scm_v008/wandb/offline-run-20260228_032324-vastai000/run-vastai000.wandb"
     path_csv = "result2.csv"
-	"""
+    """
 
     df = parse_wandb_logs_to_df(path_log=path_log, dedup_by_step=True)
     save_df_to_csv(df, path_csv=path_csv)

@@ -164,6 +164,7 @@ def plot_columns_to_png(
     cols: Sequence[str],
     x_col: str = "step",
     title: Optional[str] = None,
+    y_lim = [0.5, 1.0],
 ) -> None:
     """
     Plot multiple columns (lines) against x_col and save as PNG.
@@ -230,7 +231,7 @@ if __name__ == "__main__":
     # Output CSV
     path_csv = r"/path/to/merged_with_ma.csv"
 	
-	"""
+    """
 	# Examples
 	
     path_logs = [
@@ -265,6 +266,7 @@ if __name__ == "__main__":
 	    path_png=str(Path(path_csv).with_suffix("")) + "_accuracy_ma.png",
 	    cols=acc_cols,
 	    title="Accuracy Moving Averages",
+        y_lim=[0.62, 0.72],
     )
 
     # 2) ce moving averages plot
@@ -274,4 +276,5 @@ if __name__ == "__main__":
 	    path_png=str(Path(path_csv).with_suffix("")) + "_ce_ma.png",
 	    cols=ce_cols,
 	    title="CE Moving Averages",
+        y_lim=[0.70, 0.95],
     )
