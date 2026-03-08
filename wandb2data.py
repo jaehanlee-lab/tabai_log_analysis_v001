@@ -40,6 +40,10 @@ CE_RE = re.compile(r"\bce\s*=\s*([+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?)\b")
 
 LIKELY_TQDM_LINE = re.compile(r"\bStep:\s*.*\|\s*\d+\s*/\s*\d+\s*\[")
 
+# optional extra columns (default)
+DEFAULT_EXTRA_COLS = ["difficulty", "entropy"]
+# number pattern (reuse for optional metrics)
+NUM_PAT = r"([+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?)"
 
 def iter_wandb_files(path_log: Union[str, Path]) -> Iterator[Path]:
     """
@@ -70,7 +74,10 @@ def read_text_lines(fp: Path) -> Iterator[str]:
             yield line.rstrip("\n")
 
 
-def parse_tqdm_line(line: str) -> Optional[Dict[str, Optional[float]]]:
+def parse_tqdm_line(
+        line: str,
+        extra_cols: Optional[List[str]] = None,
+) -> Optional[Dict[str, Optional[float]]]:
     """
     tqdm 진행 라인에서 필요한 값만 추출해 dict로 반환.
     매칭 실패/유효값 부족 시 None.
@@ -108,7 +115,7 @@ def parse_tqdm_line(line: str) -> Optional[Dict[str, Optional[float]]]:
     accuracy = float(m_acc.group(1)) if m_acc else None
     ce = float(m_ce.group(1)) if m_ce else None
 
-    return {
+    base = {
         "step": step,
         "total_step": total_step,
         "s_per_it": s_per_it,
@@ -116,8 +123,21 @@ def parse_tqdm_line(line: str) -> Optional[Dict[str, Optional[float]]]:
         "ce": ce,
     }
 
+    # [ADD] optional parsing
+    extra_cols = extra_cols or []
+    for k in extra_cols:
+        # key=value 형태로 등장하면 float로 파싱, 없으면 그냥 스킵(DF에서 NaN)
+        m = re.search(rf"\b{re.escape(k)}\s*=\s*{NUM_PAT}\b", line)
+        if m:
+            base[k] = float(m.group(1))
 
-def extract_rows(path_log: Union[str, Path], dedup_by_step: bool = True) -> List[Dict]:
+    return base
+
+def extract_rows(
+    path_log: Union[str, Path],
+    dedup_by_step: bool = True,
+    extra_cols: Optional[List[str]] = None,
+) -> List[Dict]:
     """
     path_log 내 .wandb 로그(파일 또는 디렉토리)에서 파싱 가능한 모든 row를 수집.
 
@@ -126,10 +146,11 @@ def extract_rows(path_log: Union[str, Path], dedup_by_step: bool = True) -> List
     """
     rows: List[Dict] = []
     seen_steps = set()
+    extra_cols = extra_cols or []
 
     for fp in iter_wandb_files(path_log):
         for line in read_text_lines(fp):
-            parsed = parse_tqdm_line(line)
+            parsed = parse_tqdm_line(line, extra_cols=extra_cols)
             if parsed is None:
                 continue
 
@@ -144,15 +165,22 @@ def extract_rows(path_log: Union[str, Path], dedup_by_step: bool = True) -> List
     rows.sort(key=lambda r: r["step"])
     return rows
 
-
-def parse_wandb_logs_to_df(path_log: Union[str, Path], dedup_by_step: bool = True) -> "pd.DataFrame":
+def parse_wandb_logs_to_df(
+    path_log: Union[str, Path],
+    dedup_by_step: bool = True,
+    extra_cols: Optional[List[str]] = None,
+) -> "pd.DataFrame":
     """
     상위 함수(저장 없음):
       - path_log에서 필요한 지표를 파싱
       - pandas DataFrame으로 반환
     """
-    rows = extract_rows(path_log=path_log, dedup_by_step=dedup_by_step)
-    return pd.DataFrame(rows, columns=["step", "total_step", "s_per_it", "accuracy", "ce"])
+    extra_cols = DEFAULT_EXTRA_COLS if extra_cols is None else extra_cols  # None이면 디폴트 적용, []면 추가 없음
+    rows = extract_rows(path_log=path_log, dedup_by_step=dedup_by_step, extra_cols=extra_cols)
+
+    base_cols = ["step", "total_step", "s_per_it", "accuracy", "ce"]
+    cols = base_cols + list(extra_cols)
+    return pd.DataFrame(rows, columns=cols)
 
 
 def save_df_to_csv(df: "pd.DataFrame", path_csv: Union[str, Path]) -> None:
@@ -179,7 +207,8 @@ if __name__ == "__main__":
     path_csv = "result2.csv"
     """
 
-    df = parse_wandb_logs_to_df(path_log=path_log, dedup_by_step=True)
+    # df = parse_wandb_logs_to_df(path_log=path_log, dedup_by_step=True)  # extra_cols=None -> difficulty/entropy 시도
+    df = parse_wandb_logs_to_df(path_log=path_log, dedup_by_step=True, extra_cols=[])  # 추가 컬럼 없음
     save_df_to_csv(df, path_csv=path_csv)
 
     print(f"Saved: {path_csv}")
