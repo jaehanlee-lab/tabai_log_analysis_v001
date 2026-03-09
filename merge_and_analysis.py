@@ -192,7 +192,17 @@ def plot_columns_to_png(
     out_path = Path(path_png)
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
-    d = df.sort_values(x_col, kind="mergesort")
+    import re
+    d = df.sort_values(x_col, kind="mergesort").reset_index(drop=True)
+
+    # optional: hide unstable region for moving averages
+    if True:  # or make it a function arg: trim_by_window
+        for c in cols_exist:
+            m = re.search(r"_ma(\d+)$", c)
+            if m:
+                w = int(m.group(1))
+                if w > 1 and c in d.columns:
+                    d.loc[: w - 2, c] = float("nan")
 
     plt.figure()
     for c in cols_exist:
